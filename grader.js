@@ -26,6 +26,7 @@ var program = require('commander');
 var cheerio = require('cheerio');
 var HTMLFILE_DEFAULT = "index.html";
 var CHECKSFILE_DEFAULT = "checks.json";
+var rest = require('restler');
 
 var assertFileExists = function(infile) {
     var instr = infile.toString();
@@ -61,12 +62,33 @@ var clone = function(fn) {
     return fn.bind({});
 };
 
+var downloadUrl = function(url, filename) {
+  rest.get(url).on('complete', function(result) {
+    if (result instanceof Error) {
+      console.log('Error: ' + result.message);
+      this.retry(5000);
+    } else {
+      fs.writeFile(filename, result);
+    }
+  });
+}
+
 if(require.main == module) {
     program
         .option('-c, --checks <check_file>', 'Path to checks.json', clone(assertFileExists), CHECKSFILE_DEFAULT)
         .option('-f, --file <html_file>', 'Path to index.html', clone(assertFileExists), HTMLFILE_DEFAULT)
+        .option('-u, --url <url>', 'URL to check', null, "")
         .parse(process.argv);
-    var checkJson = checkHtmlFile(program.file, program.checks);
+    var file = "";
+    if (program.file != null) {
+      file = program.file;
+    } else if (program.url != null) {
+      file = "tmp.html";
+      downloadUrl(program.url, file);
+    } else {
+      console.log("You must specify either --file or --url");
+    }
+    var checkJson = checkHtmlFile(file, program.checks);
     var outJson = JSON.stringify(checkJson, null, 4);
     console.log(outJson);
 } else {
